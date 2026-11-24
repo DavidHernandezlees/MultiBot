@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseAppHost>false</UseAppHost>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/MultiAiRobot/Services/LicenseClient.cs" Link="Client/LicenseClient.cs" />
+    <Compile Include="../../src/MultiAiRobot/Services/UpdateClient.cs" Link="Client/UpdateClient.cs" />
+    <Compile Include="../../src/MultiAiRobot/Models/LogLevel.cs" Link="Client/LogLevel.cs" />
+  </ItemGroup>
+</Project>

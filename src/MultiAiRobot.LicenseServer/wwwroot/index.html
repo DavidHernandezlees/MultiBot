@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Manage Multi AI Robot accounts, licenses, and connected devices.">
+  <title>Multi AI Robot · License console</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/admin.css">
+  <script src="/admin.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="boot-screen" class="boot-screen" role="status">
+    <span class="brand-mark" aria-hidden="true">M<span>·</span></span>
+    <span class="spinner" aria-hidden="true"></span>
+    <p>Connecting to your license service…</p>
+  </div>
+
+  <section id="auth-screen" class="auth-screen" hidden>
+    <div class="auth-story">
+      <div class="brand auth-brand"><span class="brand-mark" aria-hidden="true">M<span>·</span></span><div><strong>Multi AI Robot</strong><span>LICENSE CONSOLE</span></div></div>
+      <div class="auth-story-content">
+        <div class="eyebrow light"><span class="status-dot"></span> YOUR ACCESS CONTROL CENTER</div>
+        <h1>Access,<br>under control.</h1>
+        <p>Manage accounts, issue licenses, and keep track of every connected device from one clear workspace.</p>
+        <div class="auth-feature"><span class="feature-number">01</span><div><strong>One account. Clear permissions.</strong><span>Create and manage access for your users.</span></div></div>
+        <div class="auth-feature"><span class="feature-number">02</span><div><strong>Every license accounted for.</strong><span>Set expiry dates and device limits in seconds.</span></div></div>
+        <div class="auth-feature"><span class="feature-number">03</span><div><strong>A record of every change.</strong><span>Review administrative activity at any time.</span></div></div>
+      </div>
+      <div class="auth-story-footer">Multi AI Robot <span>Administration</span></div>
+    </div>
+    <div class="auth-form-side">
+      <button class="icon-button auth-theme theme-toggle" type="button" aria-label="Switch color theme" title="Switch color theme"></button>
+      <div class="auth-card">
+        <span class="auth-label">ADMINISTRATOR ACCESS</span>
+        <h2 id="auth-title">Welcome back.</h2>
+        <p class="muted auth-intro" id="auth-intro">Sign in to manage your license service.</p>
+        <div id="auth-error" class="notice danger" role="alert" hidden></div>
+        <div id="setup-panel" hidden>
+          <div class="notice info"><strong>Initialize your administrator account</strong><p>This service is new. Run 01-Create-Administrator.cmd from the extracted package, then return here to sign in.</p></div>
+          <label class="field-label" for="setup-command">Or, from the app/LicenseServer folder</label>
+          <pre id="setup-command" class="command-block">MultiAiRobot.LicenseServer.exe init-admin</pre>
+          <p class="field-hint">Use the same data directory as your running server. The command prompts for a username and password. Existing administrators are never overwritten.</p>
+          <button id="setup-refresh" class="button primary full-width" type="button">I’ve initialized the server · Check again</button>
+        </div>
+        <form id="login-form">
+          <div class="field"><label for="login-username">Username</label><input id="login-username" name="username" autocomplete="username" required maxlength="64" placeholder="Your administrator username" spellcheck="false" autocapitalize="none"></div>
+          <div class="field"><label for="login-password">Password</label><div class="password-input"><input id="login-password" name="password" type="password" autocomplete="current-password" required maxlength="256" placeholder="Enter your password"><button class="password-toggle" type="button" data-password-target="login-password" aria-label="Show password">Show</button></div></div>
+          <button id="login-submit" class="button primary full-width" type="submit">Sign in <span aria-hidden="true">↗</span></button>
+        </form>
+        <p class="auth-note">Administrator credentials are separate from your app accounts. Passwords are not written to browser storage.</p>
+      </div>
+      <div class="auth-bottom"><span class="status-dot"></span><span id="auth-service-state">Connected to your local service</span></div>
+    </div>
+  </section>
+
+  <div id="app-screen" class="app-shell" hidden>
+    <aside id="sidebar" class="sidebar" aria-label="Main navigation">
+      <a class="brand" href="#overview"><span class="brand-mark" aria-hidden="true">M<span>·</span></span><div><strong>Multi AI Robot</strong><span>LICENSE CONSOLE</span></div></a>
+      <div class="sidebar-section-label">WORKSPACE</div>
+      <nav id="navigation">
+        <a class="nav-item" href="#overview" data-view="overview"><span data-icon="overview"></span><span>Overview</span></a>
+        <a class="nav-item" href="#licenses" data-view="licenses"><span data-icon="key"></span><span>Licenses</span><span id="nav-license-count" class="nav-count">—</span></a>
+        <a class="nav-item" href="#accounts" data-view="accounts"><span data-icon="users"></span><span>Accounts</span><span id="nav-account-count" class="nav-count">—</span></a>
+        <a class="nav-item" href="#activity" data-view="activity"><span data-icon="activity"></span><span>Activity</span></a>
+      </nav>
+      <div class="sidebar-service"><span class="service-icon" data-icon="shield"></span><strong>Your license service</strong><p>Account access and device control in one place.</p><div><span class="status-dot"></span><span id="sidebar-service-state">Connected</span></div></div>
+      <div class="sidebar-footer"><span class="avatar">AD</span><div><strong id="admin-name">Administrator</strong><span>Admin workspace</span></div><button id="logout-button" class="icon-button sidebar-logout" type="button" aria-label="Sign out" title="Sign out"><span data-icon="logout"></span></button></div>
+    </aside>
+    <button id="mobile-backdrop" class="mobile-backdrop" type="button" aria-label="Close navigation" hidden></button>
+    <div class="workspace">
+      <header class="topbar"><div class="topbar-left"><button id="menu-button" class="icon-button mobile-menu" type="button" aria-label="Open navigation" aria-expanded="false"><span data-icon="menu"></span></button><span class="workspace-label">WORKSPACE</span><span class="breadcrumb-divider">/</span><span id="breadcrumb">Overview</span></div><div class="topbar-right"><span class="topbar-service"><span class="status-dot"></span>Admin session</span><button class="icon-button theme-toggle" type="button" aria-label="Switch color theme" title="Switch color theme"></button></div></header>
+      <main id="main" tabindex="-1">
+        <div id="page-header" class="page-header"><div><div id="page-eyebrow" class="eyebrow">AT A GLANCE</div><h1 id="page-title">Overview</h1><p id="page-description" class="page-description">A clear picture of your licenses and connected devices.</p></div><div class="page-actions"><button id="refresh-button" class="button secondary" type="button"><span data-icon="refresh"></span><span>Refresh</span></button><button id="primary-action" class="button primary" type="button"><span data-icon="plus"></span><span id="primary-action-label">Issue license</span></button></div></div>
+        <div id="page-error" class="notice danger page-error" role="alert" hidden></div>
+        <div id="page-content" aria-live="polite"></div>
+        <footer class="workspace-footer"><span>Multi AI Robot · License administration</span><span id="updated-label">Loading your workspace…</span></footer>
+      </main>
+    </div>
+  </div>
+  <dialog id="modal" class="modal" aria-labelledby="modal-title"></dialog>
+  <div id="toasts" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
+  <noscript><div class="noscript">JavaScript is required to use the license console. Enable it and reload this page.</div></noscript>
+</body>
+</html>

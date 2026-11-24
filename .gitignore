@@ -1,0 +1,17 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+app/LicenseServer/
+app/Desktop/
+app/BetBurgerTipStore/labels.json
+verification/
+*.sqlite3*
+*.sqlite*
+*.db
+*.db-*
+*.log
+.env
+.env.*
+instance.id

@@ -1,0 +1,12 @@
+{
+  "valuebets": [{
+    "valuebet_id": "offline-example", "target_bookmaker_bet_id": "demo-selection",
+    "bookmaker_id": 10, "bookmaker_event_id": 81, "market_and_bet_type": 19,
+    "market_and_bet_type_param": 2.5, "period_identifier": 0, "odds": 2.15,
+    "percent": 3.75, "created_at": 1700000000, "updated_at": 1700000020,
+    "paused": false, "lay": false, "direct_link": "FI=1234567&ID=7654321&OD=23/20"
+  }],
+  "events": {"81": {"bookmaker_event_id": 81, "bookmaker_id": 10,
+    "sport_id": 7, "bookmaker_event_name": "Demo United vs Demo City",
+    "bookmaker_event_direct_link": "/event/1234567", "started_at": 1700003600}}
+}
