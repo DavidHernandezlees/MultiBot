@@ -2,7 +2,11 @@
 
 MultiBot provides BreakingBet and BetBurger tip feeds and a local licensing service for MultiAiRobot 1.2.0 on Windows x64. Both collectors save quotes to SQLite and serve the desktop over TCP.
 
-## Start the BreakingBet tip server
+## Open the Windows app
+
+Download and open [MultiBotDesk.exe](https://raw.githubusercontent.com/DavidHernandezlees/MultiBot/main/app/MultiBotDesk/MultiBotDesk.exe) on Windows x64. It opens your latest 50 saved tips. To collect new tips, enter your BreakingBet access key ID and secret, choose a feed, and click **Start server**. Connect MultiAiRobot to the address displayed in the app. **Stop server** or closing the window releases the connection. The app keeps your credentials in memory.
+
+## Start the BreakingBet tip server from the console
 
 Run `07-Start-BreakingBet-Tip-Server.cmd`, choose pre-match or live, and enter your BreakingBet access key ID and secret. In the desktop Tip Server settings, connect to `127.0.0.1:14010`. BreakingBet tips appear with their market, odds and overvaluation percentage. Run `08-View-BreakingBet-Tips.cmd` to view history. [Setup, filter options and desktop compatibility](BREAKINGBET_SETUP.md)
 

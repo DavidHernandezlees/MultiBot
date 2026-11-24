@@ -81,10 +81,10 @@ namespace MultiAiRobot.Feed
             return count;
         }
 
-        static HttpResponseMessage PollBetBurger(HttpClient http, string mode, string token, string filters)
+        static HttpResponseMessage PollBetBurger(HttpClient http, string mode, string token, string filters, CancellationToken stop)
         {
             using (var form = Request(token, filters))
-                return http.PostAsync(Endpoint(mode), form, Stop.Token).GetAwaiter().GetResult();
+                return http.PostAsync(Endpoint(mode), form, stop).GetAwaiter().GetResult();
         }
 
         static bool Gone(TcpClient client) {return client.Client.Poll(0,SelectMode.SelectRead) && client.Available==0;}
@@ -107,67 +107,79 @@ namespace MultiAiRobot.Feed
             }
             int port=Number("PORT",14010,1,65535), interval=Number("POLL_SECONDS",5,breakingBet ? 2 : 1,3600);
             int maxAge=Number("MAX_AGE_SECONDS",mode=="live"?30:300,1,86400);
+            Func<HttpClient,CancellationToken,HttpResponseMessage> poll = (http, stop) => breaking == null
+                ? PollBetBurger(http, mode, token, filters, stop) : breaking.Poll(http, stop);
+            return RunServer(store, mode, port, interval, maxAge, breaking, poll, Stop.Token, Console.WriteLine, Console.Error.WriteLine,
+                delegate { Console.WriteLine("Press Ctrl+C to stop."); });
+        }
+
+        internal static int RunServer(Store store, string mode, int port, int interval, int maxAge,
+            BreakingBetClient breaking, Func<HttpClient,CancellationToken,HttpResponseMessage> poll,
+            CancellationToken stop, Action<string> log, Action<string> error, Action onListening, HttpMessageHandler httpHandler = null)
+        {
+            string provider = breaking == null ? "BetBurger" : "BreakingBet";
             var listener=new TcpListener(IPAddress.Loopback,port);
             listener.Server.ExclusiveAddressUse=true;
             listener.Start(4);
-            var handler=new HttpClientHandler {AllowAutoRedirect=false,AutomaticDecompression=DecompressionMethods.GZip|DecompressionMethods.Deflate};
+            var handler = httpHandler ?? new HttpClientHandler {AllowAutoRedirect=false,AutomaticDecompression=DecompressionMethods.GZip|DecompressionMethods.Deflate};
             using(var http=new HttpClient(handler) {Timeout=TimeSpan.FromSeconds(15),MaxResponseContentBufferSize=8*1024*1024}) {
                 TcpClient client=null;
                 int failures=0;
                 try {
-                    Console.WriteLine(Provider+" tip server listening on 127.0.0.1:"+port+" ("+mode+"). Ctrl+C to stop.");
-                    while(!Stop.IsCancellationRequested) {
+                    onListening();
+                    log(provider+" tip server listening on 127.0.0.1:"+port+" ("+mode+").");
+                    while(!stop.IsCancellationRequested) {
                         int delay=interval;
                         try {
                             if(client!=null && Gone(client)) {client.Close(); client=null;}
                             if(client==null && listener.Pending()) {
                                 client=listener.AcceptTcpClient(); client.NoDelay=true; client.SendTimeout=2000;
-                                Console.WriteLine("Desktop connected.");
+                                log("Desktop connected.");
                             }
-                            using(var response = breakingBet ? breaking.Poll(http, Stop.Token) : PollBetBurger(http, mode, token, filters)) {
+                            using(var response = poll(http, stop)) {
                                 int code=(int)response.StatusCode;
                                 if(code==401 || code==402 || code==403 || code==400) {
-                                    Console.Error.WriteLine(Provider+" returned HTTP "+code+". Check credentials, subscription and filter settings."); return 3;
+                                    error(provider+" returned HTTP "+code+". Check credentials, subscription and filter settings."); return 3;
                                 }
-                                if (breakingBet && code == 202) {
-                                    Console.WriteLine("BreakingBet filter results pending.");
+                                if (breaking != null && code == 202) {
+                                    log("BreakingBet filter results pending.");
                                     failures = 0;
                                 } else if(!response.IsSuccessStatusCode) {
-                                    if(code!=429 && (code<500 || code>=600)) throw new InvalidDataException("Unexpected "+Provider+" HTTP status "+code+".");
+                                    if(code!=429 && (code<500 || code>=600)) throw new InvalidDataException("Unexpected "+provider+" HTTP status "+code+".");
                                     failures=Math.Min(failures+1,7); delay=Math.Max(interval,Math.Min(120,1<<failures));
                                     var retry=response.Headers.RetryAfter;
                                     if(retry!=null) {
                                         var after=retry.Delta ?? (retry.Date.HasValue ? retry.Date.Value-DateTimeOffset.UtcNow : TimeSpan.Zero);
                                         delay=(int)Math.Max(delay,Math.Min(2000000,Math.Ceiling(after.TotalSeconds)));
                                     }
-                                    Console.Error.WriteLine(Provider+" HTTP "+code+". Retrying in "+delay+" seconds.");
+                                    error(provider+" HTTP "+code+". Retrying in "+delay+" seconds.");
                                 } else {
                                     string body=response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                                     var now=DateTimeOffset.UtcNow;
-                                    var rows = breakingBet ? breaking.Labels.Parse(body,mode,now.ToUnixTimeSeconds(),maxAge) : Feed.Parse(body,mode,now.ToUnixTimeSeconds(),maxAge);
+                                    var rows = breaking != null ? breaking.Labels.Parse(body,mode,now.ToUnixTimeSeconds(),maxAge) : Feed.Parse(body,mode,now.ToUnixTimeSeconds(),maxAge);
                                     string stamp=now.ToString("o");
                                     Save(store,rows,stamp);
                                     int sent=0;
                                     if(client!=null) {
                                         try { sent=Deliver(store,rows,client.GetStream(),stamp,maxAge); }
-                                        catch(IOException) {client.Close(); client=null; Console.Error.WriteLine("Desktop disconnected during delivery.");}
+                                        catch(IOException) {client.Close(); client=null; error("Desktop disconnected during delivery.");}
                                     }
-                                    Console.WriteLine("{0:u}  received {1}, eligible {2}, forwarded {3}",now,rows.Count,rows.Count(q=>q.CanDeliver),sent);
+                                    log(string.Format("{0:u}  received {1}, eligible {2}, forwarded {3}",now,rows.Count,rows.Count(q=>q.CanDeliver),sent));
                                     failures=0;
                                 }
                             }
                         } catch(OperationCanceledException) {
-                            if(Stop.IsCancellationRequested) break;
+                            if(stop.IsCancellationRequested) break;
                             failures=Math.Min(failures+1,7); delay=Math.Max(interval,Math.Min(120,1<<failures));
-                            Console.Error.WriteLine(Provider+" request timed out. Retrying in "+delay+" seconds.");
+                            error(provider+" request timed out. Retrying in "+delay+" seconds.");
                         } catch(HttpRequestException) {
                             failures=Math.Min(failures+1,7); delay=Math.Max(interval,Math.Min(120,1<<failures));
-                            Console.Error.WriteLine( "Could not reach "+Provider+". Retrying in "+delay+" seconds.");
+                            error("Could not reach "+provider+". Retrying in "+delay+" seconds.");
                         } catch(SocketException) {
                             if(client!=null){client.Close();client=null;}
-                            Console.Error.WriteLine("Desktop connection lost. Waiting for reconnect.");
+                            error("Desktop connection lost. Waiting for reconnect.");
                         }
-                        Stop.Token.WaitHandle.WaitOne(TimeSpan.FromSeconds(delay));
+                        stop.WaitHandle.WaitOne(TimeSpan.FromSeconds(delay));
                     }
                 } finally {if(client!=null) client.Close(); listener.Stop();}
             }

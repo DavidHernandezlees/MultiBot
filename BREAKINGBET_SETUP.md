@@ -1,6 +1,12 @@
 # BreakingBet tip server
 
-## Start on Windows x64
+## Windows app
+
+Open `app\MultiBotDesk\MultiBotDesk.exe` on Windows x64. The app uses .NET Framework 4.8 and the SQLite engine included with Windows. You can open tip history before entering credentials. To collect tips, choose a feed and local port, enter your BreakingBet access key ID and secret, and click **Start server**. The activity panel shows poll results and connection errors. Closing the app stops its server. Both the app and the console use the same SQLite database and support the environment settings below.
+
+To build the desktop app from source, run `.\scripts\Build-MultiBotDesk.ps1 -Checks`. The checks exercise the Windows interface, loopback tip delivery, saved history, stopping and restarting, and port conflicts with a simulated feed.
+
+## Console on Windows x64
 
 1. Run `07-Start-BreakingBet-Tip-Server.cmd` from the checkout. Choose `prematch` or `live`, then enter your BreakingBet access key ID and secret key at the local prompts. Your key needs Valuebets access for the selected mode. The secret prompt hides your input.
 2. In MultiAiRobot 1.2.0, open **Settings → Tip Server** and set the host to `127.0.0.1` and port to `14010`. Select a bookmaker, sport and feed mode covered by your filter. Only one server can use that port at a time.

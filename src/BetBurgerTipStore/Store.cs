@@ -22,10 +22,11 @@ namespace MultiAiRobot.Feed
         [DllImport(Engine, CallingConvention=CallingConvention.Cdecl)] static extern int sqlite3_column_count(IntPtr s);
         IntPtr db;
 
-        public Store(string path)
+        public Store(string path, bool initialize = true)
         {
             Check(sqlite3_open16(path, out db));
             Check(sqlite3_busy_timeout(db, 5000));
+            if (!initialize) return;
             Run("CREATE TABLE IF NOT EXISTS tips (mode TEXT, id TEXT, first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, bookmaker_id INTEGER, event_name TEXT, selection TEXT, odds REAL, edge_pct REAL, quote_time INTEGER, status TEXT NOT NULL, payload TEXT NOT NULL, event_json TEXT NOT NULL, PRIMARY KEY(mode,id))");
             Run("CREATE TABLE IF NOT EXISTS deliveries (mode TEXT, target TEXT, attempted_at TEXT NOT NULL, valuebet_id TEXT NOT NULL, PRIMARY KEY(mode,target))");
             Run("CREATE INDEX IF NOT EXISTS tips_recent ON tips(last_seen DESC)");
@@ -79,9 +80,10 @@ namespace MultiAiRobot.Feed
                 q.Mode,q.Target,now,q.Id,q.Version.ToString(CultureInfo.InvariantCulture),q.Status) == 1;
         }
 
-        public void History(Action<string[]> read)
+        public void History(Action<string[]> read, bool includeBookmaker = false)
         {
-            Execute("SELECT last_seen,mode,id,event_name,selection,odds,edge_pct,status FROM tips ORDER BY last_seen DESC,id LIMIT 50", new string[0],read);
+            string book = includeBookmaker ? ",bookmaker_id" : "";
+            Execute("SELECT last_seen,mode,id,event_name,selection,odds,edge_pct,status" + book + " FROM tips ORDER BY last_seen DESC,id LIMIT 50", new string[0],read);
         }
 
         public void Dispose() { if (db != IntPtr.Zero) { sqlite3_close(db); db = IntPtr.Zero; } }
