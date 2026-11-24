@@ -1,0 +1,18 @@
+{
+  "bookmakers": {
+    "39": "Bet365"
+  },
+  "sports": {
+    "1": "Football"
+  },
+  "odds_groups": {
+    "3": "1 Half"
+  },
+  "odds_types": {
+    "22259": {
+      "title_short": "TO",
+      "title_full": "Total Over",
+      "lay": false
+    }
+  }
+}

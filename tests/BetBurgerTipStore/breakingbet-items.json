@@ -1,0 +1,51 @@
+{
+  "items": [
+    {
+      "id": "demo-valuebet",
+      "event_id": "event-A",
+      "overvaluation": "3.75",
+      "probability": "48.26",
+      "groups_ids": [
+        3
+      ],
+      "odds": [
+        {
+          "sub_event_id": "book-event-A",
+          "type_id": 22259,
+          "value": "2.15",
+          "index": "2.5",
+          "crumbs": {
+            "path": "/demo/event-A"
+          }
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "event-A",
+      "sport_id": 1,
+      "league": "Example League",
+      "team_1": "Demo United",
+      "team_2": "Demo City",
+      "start": "2034-11-24 18:00",
+      "live": false,
+      "sub_events": {
+        "book-event-A": {
+          "id": "book-event-A",
+          "bookmaker_id": 39,
+          "sport": "Football",
+          "team_1": "Demo United",
+          "team_2": "Demo City",
+          "reordered": false,
+          "crumbs": {
+            "path": "/demo/event-A"
+          }
+        }
+      }
+    }
+  ],
+  "filtered": 1,
+  "masked": false,
+  "timestamp": 1795521600
+}

@@ -15,11 +15,14 @@ namespace MultiAiRobot.Feed
     {
         static readonly CancellationTokenSource Stop=new CancellationTokenSource();
         static readonly string Base=AppDomain.CurrentDomain.BaseDirectory;
-        static string Env(string name,string fallback) { return Environment.GetEnvironmentVariable("BETBURGER_"+name) ?? fallback; }
+        static bool breakingBet;
+        static string Provider { get { return breakingBet ? "BreakingBet" : "BetBurger"; } }
+        static string Prefix { get { return breakingBet ? "BREAKINGBET_" : "BETBURGER_"; } }
+        static string Env(string name,string fallback) { return Environment.GetEnvironmentVariable(Prefix+name) ?? fallback; }
         static int Number(string name,int initial,int min,int max)
         {
             int n;
-            if(!int.TryParse(Env(name,initial.ToString()),out n) || n<min || n>max) throw new ArgumentException("BETBURGER_"+name+" must be between "+min+" and "+max+".");
+            if(!int.TryParse(Env(name,initial.ToString()),out n) || n<min || n>max) throw new ArgumentException(Prefix+name+" must be between "+min+" and "+max+".");
             return n;
         }
         static string Prompt(string message,bool secret)
@@ -66,7 +69,7 @@ namespace MultiAiRobot.Feed
         internal static int Deliver(Store store,List<Quote> rows,Stream socket,string stamp,int maxAge)
         {
             int count=0;
-            foreach(var q in rows.Where(item=>item.Status=="ready").OrderByDescending(item=>item.Updated)) {
+            foreach(var q in rows.Where(item=>item.CanDeliver).OrderByDescending(item=>item.Updated)) {
                 var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 if(now-q.Updated>maxAge) continue;
                 byte[] packet=Feed.Packet(q.Tip);
@@ -78,15 +81,31 @@ namespace MultiAiRobot.Feed
             return count;
         }
 
+        static HttpResponseMessage PollBetBurger(HttpClient http, string mode, string token, string filters)
+        {
+            using (var form = Request(token, filters))
+                return http.PostAsync(Endpoint(mode), form, Stop.Token).GetAwaiter().GetResult();
+        }
+
         static bool Gone(TcpClient client) {return client.Client.Poll(0,SelectMode.SelectRead) && client.Available==0;}
-        static int Serve(Store store)
+        static int Serve(Store store, string dir)
         {
             string mode=Mode(Env("MODE",null) ?? Prompt("Feed mode [prematch/live, Enter = prematch]: ",false));
-            string filters=Env("FILTER_IDS",null) ?? Prompt("BetBurger multifilter ID(s): ",false);
-            string token=Env("API_TOKEN",null) ?? Prompt("BetBurger API token (hidden): ",true);
-            if(string.IsNullOrWhiteSpace(token)) throw new ArgumentException("An active BetBurger API token is required.");
-            using(Request(token,filters)) {}
-            int port=Number("PORT",14010,1,65535), interval=Number("POLL_SECONDS",5,1,3600);
+            BreakingBetClient breaking = null;
+            string filters = null, token = null;
+            if (breakingBet) {
+                var key = Env("ACCESS_KEY_ID", null) ?? Prompt("BreakingBet access key ID: ", false);
+                var secret = Env("SECRET_KEY", null) ?? Prompt("BreakingBet secret key (hidden): ", true);
+                var filterPath = Env("FILTER_FILE", null);
+                breaking = new BreakingBetClient(mode, key, secret, filterPath == null ? null : File.ReadAllText(filterPath),
+                    Path.Combine(dir, "dictionaries.en.json"), () => DateTimeOffset.UtcNow);
+            } else {
+                filters=Env("FILTER_IDS",null) ?? Prompt("BetBurger multifilter ID(s): ",false);
+                token=Env("API_TOKEN",null) ?? Prompt("BetBurger API token (hidden): ",true);
+                if(string.IsNullOrWhiteSpace(token)) throw new ArgumentException("An active BetBurger API token is required.");
+                using(Request(token,filters)) {}
+            }
+            int port=Number("PORT",14010,1,65535), interval=Number("POLL_SECONDS",5,breakingBet ? 2 : 1,3600);
             int maxAge=Number("MAX_AGE_SECONDS",mode=="live"?30:300,1,86400);
             var listener=new TcpListener(IPAddress.Loopback,port);
             listener.Server.ExclusiveAddressUse=true;
@@ -96,7 +115,7 @@ namespace MultiAiRobot.Feed
                 TcpClient client=null;
                 int failures=0;
                 try {
-                    Console.WriteLine("Tip store listening on 127.0.0.1:"+port+" ("+mode+"). Ctrl+C to stop.");
+                    Console.WriteLine(Provider+" tip server listening on 127.0.0.1:"+port+" ("+mode+"). Ctrl+C to stop.");
                     while(!Stop.IsCancellationRequested) {
                         int delay=interval;
                         try {
@@ -105,25 +124,27 @@ namespace MultiAiRobot.Feed
                                 client=listener.AcceptTcpClient(); client.NoDelay=true; client.SendTimeout=2000;
                                 Console.WriteLine("Desktop connected.");
                             }
-                            using(var form=Request(token,filters))
-                            using(var response=http.PostAsync(Endpoint(mode),form,Stop.Token).GetAwaiter().GetResult()) {
+                            using(var response = breakingBet ? breaking.Poll(http, Stop.Token) : PollBetBurger(http, mode, token, filters)) {
                                 int code=(int)response.StatusCode;
                                 if(code==401 || code==402 || code==403 || code==400) {
-                                    Console.Error.WriteLine("BetBurger returned HTTP "+code+". Check the token, subscription, feed and filter IDs."); return 3;
+                                    Console.Error.WriteLine(Provider+" returned HTTP "+code+". Check credentials, subscription and filter settings."); return 3;
                                 }
-                                if(!response.IsSuccessStatusCode) {
-                                    if(code!=429 && (code<500 || code>=600)) throw new InvalidDataException("Unexpected BetBurger HTTP status "+code+".");
+                                if (breakingBet && code == 202) {
+                                    Console.WriteLine("BreakingBet filter results pending.");
+                                    failures = 0;
+                                } else if(!response.IsSuccessStatusCode) {
+                                    if(code!=429 && (code<500 || code>=600)) throw new InvalidDataException("Unexpected "+Provider+" HTTP status "+code+".");
                                     failures=Math.Min(failures+1,7); delay=Math.Max(interval,Math.Min(120,1<<failures));
                                     var retry=response.Headers.RetryAfter;
                                     if(retry!=null) {
                                         var after=retry.Delta ?? (retry.Date.HasValue ? retry.Date.Value-DateTimeOffset.UtcNow : TimeSpan.Zero);
                                         delay=(int)Math.Max(delay,Math.Min(2000000,Math.Ceiling(after.TotalSeconds)));
                                     }
-                                    Console.Error.WriteLine("BetBurger HTTP "+code+". Retrying in "+delay+" seconds.");
+                                    Console.Error.WriteLine(Provider+" HTTP "+code+". Retrying in "+delay+" seconds.");
                                 } else {
                                     string body=response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                                     var now=DateTimeOffset.UtcNow;
-                                    var rows=Feed.Parse(body,mode,now.ToUnixTimeSeconds(),maxAge);
+                                    var rows = breakingBet ? breaking.Labels.Parse(body,mode,now.ToUnixTimeSeconds(),maxAge) : Feed.Parse(body,mode,now.ToUnixTimeSeconds(),maxAge);
                                     string stamp=now.ToString("o");
                                     Save(store,rows,stamp);
                                     int sent=0;
@@ -131,17 +152,17 @@ namespace MultiAiRobot.Feed
                                         try { sent=Deliver(store,rows,client.GetStream(),stamp,maxAge); }
                                         catch(IOException) {client.Close(); client=null; Console.Error.WriteLine("Desktop disconnected during delivery.");}
                                     }
-                                    Console.WriteLine("{0:u}  received {1}, eligible {2}, forwarded {3}",now,rows.Count,rows.Count(q=>q.Status=="ready"),sent);
+                                    Console.WriteLine("{0:u}  received {1}, eligible {2}, forwarded {3}",now,rows.Count,rows.Count(q=>q.CanDeliver),sent);
                                     failures=0;
                                 }
                             }
                         } catch(OperationCanceledException) {
                             if(Stop.IsCancellationRequested) break;
                             failures=Math.Min(failures+1,7); delay=Math.Max(interval,Math.Min(120,1<<failures));
-                            Console.Error.WriteLine("BetBurger request timed out. Retrying in "+delay+" seconds.");
+                            Console.Error.WriteLine(Provider+" request timed out. Retrying in "+delay+" seconds.");
                         } catch(HttpRequestException) {
                             failures=Math.Min(failures+1,7); delay=Math.Max(interval,Math.Min(120,1<<failures));
-                            Console.Error.WriteLine("Could not reach the BetBurger API. Retrying in "+delay+" seconds.");
+                            Console.Error.WriteLine( "Could not reach "+Provider+". Retrying in "+delay+" seconds.");
                         } catch(SocketException) {
                             if(client!=null){client.Close();client=null;}
                             Console.Error.WriteLine("Desktop connection lost. Waiting for reconnect.");
@@ -155,26 +176,33 @@ namespace MultiAiRobot.Feed
         static int Main(string[] args)
         {
             try {
+                breakingBet = args.Length > 0 && args[0] == "--breakingbet";
+                if (breakingBet) args = args.Skip(1).ToArray();
                 if(args.Length>0 && args[0]=="--help") {
-                    Console.WriteLine("BetBurgerTipStore [--history | --import RESPONSE.json prematch|live]");
-                    Console.WriteLine("Start with no arguments to collect Valuebets V2 and serve MultiAiRobot. See BETBURGER_SETUP.md."); return 0;
+                    Console.WriteLine("BetBurgerTipStore [--breakingbet] [--history | --import RESPONSE.json prematch|live]");
+                    Console.WriteLine("See BREAKINGBET_SETUP.md or BETBURGER_SETUP.md for credentials, filters and offline import."); return 0;
                 }
                 ServicePointManager.SecurityProtocol=SecurityProtocolType.Tls12;
                 Console.CancelKeyPress+=(sender,e)=>{e.Cancel=true;Stop.Cancel();};
-                string dir=Env("DATA_DIR",Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"MultiAiRobot","BetBurger"));
+                string dir=Env("DATA_DIR",Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"MultiAiRobot",Provider));
                 Directory.CreateDirectory(dir);
                 string path=Path.Combine(dir,"tips.sqlite3");
-                Feed.ConfigureLabels(Path.Combine(Base,"labels.json"));
+                if (!breakingBet) Feed.ConfigureLabels(Path.Combine(Base,"labels.json"));
                 Console.WriteLine("Tip database: "+path);
                 using(var store=new Store(path)) {
-                    if(args.Length==0) return Serve(store);
+                    if(args.Length==0) return Serve(store, dir);
                     if(args.Length==1 && args[0]=="--history") {
                         Console.WriteLine("Observed (UTC) | Feed | Valuebet ID | Event | Selection | Odds | Edge % | Last observed status");
                         store.History(row=>Console.WriteLine(string.Join(" | ",row))); return 0;
                     }
                     if(args.Length==3 && args[0]=="--import") {
                         var now=DateTimeOffset.UtcNow;
-                        var rows=Feed.Parse(File.ReadAllText(args[1]),Mode(args[2]),now.ToUnixTimeSeconds(),Number("MAX_AGE_SECONDS",Mode(args[2])=="live"?30:300,1,86400));
+                        string mode = Mode(args[2]);
+                        int age = Number("MAX_AGE_SECONDS", mode == "live" ? 30 : 300, 1, 86400);
+                        string json = File.ReadAllText(args[1]);
+                        var rows = breakingBet
+                            ? new BreakingBetFeed(File.ReadAllText(Env("DICTIONARY_FILE", Path.Combine(dir,"dictionaries.en.json")))).Parse(json, mode, now.ToUnixTimeSeconds(), age)
+                            : Feed.Parse(json, mode, now.ToUnixTimeSeconds(), age);
                         Save(store,rows,now.ToString("o")); Console.WriteLine("Imported "+rows.Count+" valuebet(s)."); return 0;
                     }
                     throw new ArgumentException("Invalid command. Run --help for usage.");

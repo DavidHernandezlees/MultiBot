@@ -67,15 +67,16 @@ namespace MultiAiRobot.Feed
         {
             var args = new[] {q.Mode,q.Id,now,q.BookId,q.Tip.eventTitle,q.Tip.outcome,
                 q.Tip.odds.ToString("R", CultureInfo.InvariantCulture),q.Tip.percent.ToString(CultureInfo.InvariantCulture),
-                q.Updated.ToString(CultureInfo.InvariantCulture),q.Status,q.Json,q.EventJson};
+                q.Version.ToString(CultureInfo.InvariantCulture),q.Status,q.Json,q.EventJson};
             Run("INSERT INTO tips(mode,id,first_seen,last_seen,bookmaker_id,event_name,selection,odds,edge_pct,quote_time,status,payload,event_json) VALUES(?1,?2,?3,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12) ON CONFLICT(mode,id) DO UPDATE SET last_seen=excluded.last_seen,bookmaker_id=excluded.bookmaker_id,event_name=excluded.event_name,selection=excluded.selection,odds=excluded.odds,edge_pct=excluded.edge_pct,quote_time=excluded.quote_time,status=excluded.status,payload=excluded.payload,event_json=excluded.event_json WHERE excluded.quote_time >= tips.quote_time", args);
         }
 
         public bool Claim(Quote q, string now)
         {
             // A stale response cannot overwrite or deliver an already newer version.
-            return Run("INSERT OR IGNORE INTO deliveries(mode,target,attempted_at,valuebet_id) SELECT ?1,?2,?3,?4 WHERE EXISTS(SELECT 1 FROM tips WHERE mode=?1 AND id=?4 AND quote_time=CAST(?5 AS INTEGER) AND status='ready')",
-                q.Mode,q.Target,now,q.Id,q.Updated.ToString(CultureInfo.InvariantCulture)) == 1;
+            if (!q.CanDeliver) return false;
+            return Run("INSERT OR IGNORE INTO deliveries(mode,target,attempted_at,valuebet_id) SELECT ?1,?2,?3,?4 WHERE EXISTS(SELECT 1 FROM tips WHERE mode=?1 AND id=?4 AND quote_time=CAST(?5 AS INTEGER) AND status=?6)",
+                q.Mode,q.Target,now,q.Id,q.Version.ToString(CultureInfo.InvariantCulture),q.Status) == 1;
         }
 
         public void History(Action<string[]> read)

@@ -1,8 +1,12 @@
 # MultiBot
 
-MultiBot provides a BetBurger Valuebets V2 tip store and a local licensing service for MultiAiRobot 1.2.0 on Windows x64. The collector saves quotes to SQLite and sends eligible selections to an existing desktop installation over TCP.
+MultiBot provides BreakingBet and BetBurger tip feeds and a local licensing service for MultiAiRobot 1.2.0 on Windows x64. Both collectors save quotes to SQLite and serve the desktop over TCP.
 
-## Start the tip store
+## Start the BreakingBet tip server
+
+Run `07-Start-BreakingBet-Tip-Server.cmd`, choose pre-match or live, and enter your BreakingBet access key ID and secret. In the desktop Tip Server settings, connect to `127.0.0.1:14010`. BreakingBet tips appear with their market, odds and overvaluation percentage. Run `08-View-BreakingBet-Tips.cmd` to view history. [Setup, filter options and desktop compatibility](BREAKINGBET_SETUP.md)
+
+## Start the BetBurger tip store
 
 1. Run `05-Start-BetBurger-Tip-Store.cmd`. The compiled tip store is included.
 2. Select pre-match or live and enter your BetBurger multifilter ID and API token at the local prompts.

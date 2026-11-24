@@ -59,6 +59,7 @@ namespace MultiAiRobot.Feed
                 Assert(fields.Contains("search_filter%5B%5D=123") && fields.Contains("search_filter%5B%5D=456") && fields.Contains("access_token=example+token"),"official POST form");
             }
             Assert(Program.Endpoint("live").Host=="rest-api-lv.betburger.com" && Program.Endpoint("prematch").AbsolutePath=="/api/v2/valuebets/bot_pro_search","API routes");
+            BreakingBetChecks.Run(args[0], args[1]);
             return 0;
         }
     }

@@ -40,7 +40,10 @@ namespace MultiAiRobot.Feed
     {
         public string Mode, Id, Target, Status, BookId, Json, EventJson;
         public long Updated;
+        public long? Snapshot;
+        public long Version { get { return Snapshot ?? Updated; } }
         public WireTip Tip;
+        public bool CanDeliver { get { return Status == "ready" || Status == "display only"; } }
     }
 
     internal static class Feed
@@ -68,7 +71,7 @@ namespace MultiAiRobot.Feed
         };
 
         internal static JavaScriptSerializer Serializer() { return new JavaScriptSerializer { MaxJsonLength=8*1024*1024, RecursionLimit=48 }; }
-        static string Field(IDictionary<string,object> row, string name)
+        internal static string Field(IDictionary<string,object> row, string name)
         {
             object v;
             return row != null && row.TryGetValue(name,out v) && v != null && (v is string || v is ValueType)
@@ -77,14 +80,14 @@ namespace MultiAiRobot.Feed
         static string First(params string[] xs) { foreach (var x in xs) if (!string.IsNullOrWhiteSpace(x)) return x; return ""; }
         static string Label(Dictionary<string,string> dict,string key,string fallback)
         { string name; return dict.TryGetValue(key,out name) ? name : fallback; }
-        static long Epoch(string text)
+        internal static long Epoch(string text)
         {
             long n;
             if (!long.TryParse(text,NumberStyles.Integer,Inv,out n) || n < 1) return 0;
             if (n >= 1000000000000L) n /= 1000;
             return n <= 253402300799L ? n : 0;
         }
-        static string Iso(long n) { return n == 0 ? "" : DateTimeOffset.FromUnixTimeSeconds(n).ToString("u",Inv); }
+        internal static string Iso(long n) { return n == 0 ? "" : DateTimeOffset.FromUnixTimeSeconds(n).ToString("u",Inv); }
         static bool Flag(string value, out bool result)
         {
             if (value=="0" || value=="1") {result=value=="1"; return true;}

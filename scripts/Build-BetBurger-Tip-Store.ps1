@@ -11,9 +11,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Tip store compilation failed.' }
 if ($Checks) {
     $checkDir = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString('N'))
     [void](New-Item -ItemType Directory -Path $checkDir)
-    & $compiler @options "/out:$checkDir\Checks.exe" '/main:MultiAiRobot.Feed.Checks' @sourceFiles (Join-Path $root 'tests\BetBurgerTipStore\Checks.cs')
+    $fixtures = Join-Path $root 'tests\BetBurgerTipStore'
+    $checkFiles = (Get-ChildItem -LiteralPath $fixtures -Filter '*.cs').FullName
+    & $compiler @options "/out:$checkDir\Checks.exe" '/main:MultiAiRobot.Feed.Checks' @sourceFiles @checkFiles
     if ($LASTEXITCODE -ne 0) { throw 'Tip store checks did not compile.' }
-    & "$checkDir\Checks.exe" $checkDir
+    & "$checkDir\Checks.exe" $checkDir $fixtures
     if ($LASTEXITCODE -ne 0) { throw 'Tip store checks failed.' }
     if ($DesktopDirectory) {
         if ([Environment]::Version.Major -lt 10) { throw 'Desktop decoder checks require PowerShell running on .NET 10 or later.' }
